@@ -1,0 +1,9 @@
+pyproj
+cartopy
+matplotlib
+numpy
+pandas
+requests
+seaborn
+Shapely
+six

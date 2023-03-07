@@ -1,6 +1,8 @@
 # CHEER-STORM
 repo for codes/processing of STORM datasets for CHEER
 
+GitHub Repo: git@github.com:BrianOBlanton/CHEER-STORM.git
+
 Binder Notebook: 
 https://mybinder.org/v2/gh/BrianOBlanton/CHEER-STORM/HEAD?labpath=STORM_LoadDemo-NoCartopy.ipynb
 

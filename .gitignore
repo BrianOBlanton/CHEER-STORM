@@ -1,5 +1,6 @@
 CHEER_Tracks/
-*.png
+test*
+#*.png
 *.pkl
 
 # Byte-compiled / optimized / DLL files

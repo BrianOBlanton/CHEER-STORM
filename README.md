@@ -25,13 +25,15 @@ To make a python environment with the requirements.txt file:
 conda create --name cheer --file  requirements.txt
 </pre>
 
-Activate the new env, and install jupyter components. 
+Activate the new env, install jupyter components, and add cheer kernel to jupyter.
 
 <pre>
 conda activate cheer
-
-
+pip install ipython jupyterlab ipykernel
+python -m ipykernel install --user --display-name cheer --name cheer
 </pre>
+
+Then, fire up the jupyter server.  
 
 
 ## Reference articles / data
@@ -41,7 +43,7 @@ https://doi.org/10.4121/uuid:82c1dc0d-5485-43d8-901a-ce7f26cda35d
 
 https://data.4tu.nl/articles/STORM_IBTrACS_present_climate_synthetic_tropical_cyclone_tracks/12706085?file=24876980
 
-The 10,000 year TC STORM dataset, based on the present climate, is publicly accessible and can be found on the 4TU.Centre for Research Data repository (https://doi.org/10.4121/uuid:82c1dc0d-5485-43d8-901a-ce7f26cda35d). The dataset is split in separate files per basin, with each .txt-file containing 1,000 years of simulations (i.e. 10 files per basin). Each .txt-file consists of a series of arrays, with each array being a single time step (3-hourly) for a synthetic TC. The colmns of the arrays are given in this table:
+The 10,000 year TC STORM dataset, based on the present climate, is publicly accessible and can be found on the 4TU.Centre for Research Data repository (https://doi.org/10.4121/uuid:82c1dc0d-5485-43d8-901a-ce7f26cda35d). The dataset is split in separate files per basin, with each .txt-file containing 1,000 years of simulations (i.e. 10 files per basin). Each .txt file consists of a series of arrays, with each array being a single time step (3-hourly) for a synthetic TC. The colmns of the arrays are given in this table:
 
 <img src="static/Table2.png" width=600 height=600 />
 

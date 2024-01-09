@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 
 coastline=np.loadtxt('static/coarse_us_coast.dat')
 statelines=np.loadtxt('static/states.dat')
@@ -260,3 +261,10 @@ def storm_stall(dfin):
 
     dfout.index = newt
     return dfout
+
+
+
+N=24
+cmap=discrete_cmap(N, 'jet_r')
+norm = mpl.colors.Normalize(vmin=900, vmax=1020)
+#norm = mpl.colors.Normalize(vmin=0, vmax=2)

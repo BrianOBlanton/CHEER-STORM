@@ -8,6 +8,7 @@ import pandas as pd
 import xarray as xr
 import matplotlib.pyplot as plt
 import matplotlib as mpl
+import cartopy.crs as ccrs
 
 coastline=np.loadtxt('static/coarse_us_coast.dat')
 statelines=np.loadtxt('static/states.dat')
@@ -134,7 +135,7 @@ def out_to_nws8(df,basin='AL',tau=0,advr=0,fname=None,stormname='unknown'):
         f.write(outs) 
         
     f.close()
-    
+
 
 def discrete_cmap(N, base_cmap=None):
     """
@@ -197,8 +198,19 @@ def TrackPlot(df, extent=None, axx=None, fname=None, circ=None, addcolorbar=True
 def fullTrackPlot(dfnc, extentnc, nc_circ, dftx, extenttx, tx_circ, fname=None):
     """
     """
-    fig, ax = plt.subplots(nrows=1, ncols=2, constrained_layout=True, figsize=(24, 12)) # dpi=144,)
+    fig, ax = plt.subplots(nrows=1, ncols=2, 
+                           subplot_kw={'projection': ccrs.PlateCarree()},
+                           constrained_layout=True, figsize=(24, 12)) # dpi=144,)
 
+    #fig = plt.figure(figsize=(16, 10))
+    
+    #ax[0] = plt.axes(projection=ccrs.PlateCarree())
+    ax[0].stock_img()
+    ax[0].coastlines()
+    #ax[1] = plt.axes(projection=ccrs.PlateCarree())
+    ax[1].stock_img()
+    ax[1].coastlines()
+    
     TrackPlot(dftx, extent=extenttx, axx=ax[0], circ=tx_circ, addcolorbar=False)
     TrackPlot(dfnc, extent=extentnc, axx=ax[1], circ=nc_circ)
 

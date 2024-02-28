@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 
 coastline=np.loadtxt('static/coarse_us_coast.dat')
+worldcoastline=np.loadtxt('static/worldcoast.dat')
 statelines=np.loadtxt('static/states.dat')
 
 # column def of STORM files
@@ -170,8 +171,7 @@ def TrackPlot(df, extent=None, axx=None, fname=None, circ=None, addcolorbar=True
         #axx.plot(x.iloc[-1], y.iloc[-1], marker='*', color='r')
         cm=axx.scatter(x=x, y=y, c=c, cmap=cmap, norm=norm, s=36)
                 
-    if circ is not None:
-        axx.plot(circ['cirx'],circ['ciry'],linewidth=2, color='k')
+    if circ is not None:  axx.plot(circ['cirx'],circ['ciry'],linewidth=2, color='k')
     
     if addcolorbar:
         cb1 = plt.colorbar(cm, ax=axx, orientation='vertical', pad=0.02, aspect=15) # , shrink=0.15)
@@ -188,11 +188,9 @@ def TrackPlot(df, extent=None, axx=None, fname=None, circ=None, addcolorbar=True
 
     axx.grid(True)
 
-    if fname is not None:
-        fig.savefig(fname)
+    if fname is not None: fig.savefig(fname)
     
-    if returnFigAx:
-        return fig, axx
+    if returnFigAx: return fig, axx
     
 def fullTrackPlot(dfnc, extentnc, nc_circ, dftx, extenttx, tx_circ, fname=None):
     """
@@ -202,8 +200,7 @@ def fullTrackPlot(dfnc, extentnc, nc_circ, dftx, extenttx, tx_circ, fname=None):
     TrackPlot(dftx, extent=extenttx, axx=ax[0], circ=tx_circ, addcolorbar=False)
     TrackPlot(dfnc, extent=extentnc, axx=ax[1], circ=nc_circ)
 
-    if fname is not None:
-        fig.savefig(fname)
+    if fname is not None: fig.savefig(fname)
                 
     return fig, ax
 
@@ -219,7 +216,7 @@ def LoadSTORMFile(url):
     
     #print(df)
     
-    idx_all=np.unique(df.index).astype(int)
+    #idx_all=np.unique(df.index).astype(int)
 
     # add a Day, Hour columns
     day=np.floor(df['Time_step']*3/24+1)
@@ -227,8 +224,10 @@ def LoadSTORMFile(url):
     hour=24*(df['Time_step']*3/24+1-df['Day'])
     df.insert(3, 'Hour', hour)
 
-    df['Longitude']=df['Longitude']-360
-    
+    #df['Longitude']=df['Longitude']-360
+    df['Longitude'] = np.where(df['Longitude'] > 180, df['Longitude']-360, df['Longitude'])
+    #df=df.sortby(dsout.longitude)
+
     return df
 
 def storm_stall(dfin):

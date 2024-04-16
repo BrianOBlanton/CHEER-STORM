@@ -1,4 +1,4 @@
-# git@github-work:BrianOBlanton/py_utils
+# git@github-work:BrianOBlanton/CHEER-STORM/cheer_utils
 import os
 import re
 import yaml
@@ -14,22 +14,7 @@ coastline=np.loadtxt('static/coarse_us_coast.dat')
 worldcoastline=np.loadtxt('static/worldcoast.dat')
 statelines=np.loadtxt('static/states.dat')
 
-# column def of STORM files
-cols=[
-    'Year',       # Starts at 0
-    'Month', 
-    'TC_number',  # For every year; starts at 0.
-    'Time_step',  # 3-hr, For every TC; starts at 0.
-    'Basin_ID',   # 0=EP, 1=NA, 2=NI, 3=SI, 4=SP, 5=WP
-    'Latitude',   # Deg, Position of the eye.
-    'Longitude',  # Deg, Position of the eye. Ranges from 0-360°, with prime meridian at Greenwich.
-    'Min_pres',   # hPa
-    'MaxWindSpd', # m/s
-    'RMW',        # km
-    'Category',   #
-    'Landfall',   # 0= no landfall, 1= landfall
-    'Dist2land'   # km
-    ]
+
 
 def HbFromRmwLat(rmw,lat): 
     """
@@ -137,7 +122,6 @@ def out_to_nws8(df,basin='AL',tau=0,advr=0,fname=None,stormname='unknown'):
         
     f.close()
 
-
 def discrete_cmap(N, base_cmap=None):
     """
     Create an N-bin discrete colormap from the specified input map
@@ -170,7 +154,7 @@ def TrackPlot(df, extent=None, axx=None, fname=None, circ=None, addcolorbar=True
         axx.plot(x, y, linewidth=1, color='k')
         #axx.plot(x.iloc[0], y.iloc[0], marker='*', color='g')
         #axx.plot(x.iloc[-1], y.iloc[-1], marker='*', color='r')
-        cm=axx.scatter(x=x, y=y, c=c, cmap=cmap, norm=norm, s=36)
+        cm=axx.scatter(x=x, y=y, c=c, cmap=cmap, norm=norm, s=36, transform=ccrs.PlateCarree())
                 
     if circ is not None:  axx.plot(circ['cirx'],circ['ciry'],linewidth=2, color='k')
     
@@ -179,8 +163,8 @@ def TrackPlot(df, extent=None, axx=None, fname=None, circ=None, addcolorbar=True
         cb1.ax.set_ylabel('[mb]', size=12)
         cb1.ax.tick_params(labelsize='large')
     
-    axx.plot(coastline[:,0],coastline[:,1],color='k',linewidth=.25)
-    axx.plot(statelines[:,0],statelines[:,1],color='k',linewidth=.25)
+    # axx.plot(coastline[:,0],coastline[:,1],color='k',linewidth=.25)
+    # axx.plot(statelines[:,0],statelines[:,1],color='k',linewidth=.25)
    
     if extent is not None: 
         axx.axis('equal')
@@ -216,17 +200,61 @@ def fullTrackPlot(dfnc, extentnc, nc_circ, dftx, extenttx, tx_circ, fname=None):
                 
     return fig, ax
 
-def LoadSTORMFile(url):
+def LoadSTORMtracks(basin='NA',ensnum=0,climate='current',model='present',version='_V4'):
     """
+    Loads STORM tracks into a dataframe 
+    
+    basin='NA'
+    ensnum=0
+    climate='current'
+    model='present'
+    version='_V4'
     """
+    
+    baseurl='https://tdsres.apps.renci.org/thredds/fileServer/datalayers/STORM_Bloemendaal_data'
+
+    # column def of STORM files
+    cols=[
+        'Year',       # Starts at 0
+        'Month', 
+        'TC_number',  # For every year; starts at 0.
+        'Time_step',  # 3-hr, For every TC; starts at 0.
+        'Basin_ID',   # 0=EP, 1=NA, 2=NI, 3=SI, 4=SP, 5=WP
+        'Latitude',   # Deg, Position of the eye.
+        'Longitude',  # Deg, Position of the eye. Ranges from 0-360°, with prime meridian at Greenwich.
+        'Min_pres',   # hPa
+        'MaxWindSpd', # m/s
+        'RMW',        # km
+        'Category',   #
+        'Landfall',   # 0= no landfall, 1= landfall
+        'Dist2land'   # km
+    ]
+
+    # future model dict
+    mod_dict= {'CMCC': 'CMCC-CM2-VHR4',
+               'CNRM': 'CNRM-CM6-1-HR',
+               'ECEARTH': 'EC-Earth3P-HR',
+               'HADGEM': 'HadGEM3-GC31-HM'}
+
+    if climate not in {'current','future'}:
+        raise Exception(f'climate must be "current" or "future".')
+    if model != 'present':
+        if model not in mod_dict.keys():
+            raise  Exception(f'model must be in {mod_dict.keys()}.')
+    
+    if climate == 'current':
+        url=f'{baseurl}/present{version}/STORM_DATA_IBTRACS_{basin}_1000_YEARS_{ensnum}.txt'
+    else:
+        url=f'{baseurl}/future/{model}/STORM_DATA_{mod_dict[model]}_{basin}_1000_YEARS_{ensnum}_IBTRACSDELTA.txt'
+
+    print(f'Reading STORM tracks from {url}')
+    
     df=pd.read_csv(url, names=cols)
 
     # generate an "absolute storm number (abssn)" to uniquely identify each storm 
     # in the dataset, then set that to be the dataframe index
     df['abssn']=np.cumsum(1*(df.Time_step==0))
     df.set_index('abssn',inplace=True)
-    
-    #print(df)
     
     #idx_all=np.unique(df.index).astype(int)
 
@@ -239,11 +267,76 @@ def LoadSTORMFile(url):
     #df['Longitude']=df['Longitude']-360
     df['Longitude'] = np.where(df['Longitude'] > 180, df['Longitude']-360, df['Longitude'])
     #df=df.sortby(dsout.longitude)
+    
+    df=df[df.columns.drop(list(df.filter(regex='TC_number|Time_step|Category|Landfall')))]
 
     return df
 
-def storm_stall(dfin):
 
+def LoadIBTrACS():
+
+    fl='https://tdsres.apps.renci.org/thredds/fileServer/datalayers/ibtracs/ibtracs.NA.list.v04r00.csv'
+    
+    dropcols=['SID','SUBBASIN','USA_LAT','USA_LON','USA_STATUS','USA_AGENCY','IFLAG','LANDFALL',
+          'TRACK_TYPE','WMO_AGENCY','WMO_WIND','WMO_PRES','USA_SEAHGT','USA_SEARAD_SW',
+          'USA_SEARAD_NW','USA_SEARAD_NE','USA_SEARAD_SE',
+          'USA_R64_SE','USA_R64_SW','USA_R64_NW','USA_POCI','USA_ROCI',
+          'USA_R50_NE','USA_R50_SE','USA_R50_SW','USA_R50_NW','USA_R64_NE',
+          'USA_SSHS','USA_R34_NE','USA_R34_SE','USA_R34_SW','USA_R34_NW','USA_RECORD','USA_EYE','USA_GUST'];
+
+    renamecols={'SEASON': 'Year',
+                'LAT': 'Latitude',
+                'LON': 'Longitude',
+                'USA_PRES': 'Min_pres', 
+                'USA_WIND': 'MaxWindSpd', 
+                'USA_RMW': 'RMW',
+                #'LANDFALL': 'Landfall',
+                'DIST2LAND': 'Dist2land',
+                'BASIN': 'Basin_ID'}
+
+    df=pd.read_csv(fl,skiprows = [1],low_memory=False).drop(dropcols,axis=1).replace(' ', np.nan)
+    
+    # drop other agency reports
+    df=df[df.columns.drop(list(df.filter(regex='TOKYO|BOM|REUNION|WELLINGTON|CMA|NEUMANN|TD9636|DS824|NEWDELHI|HKO|TD9635|MLC|NADI')))]
+    
+    df.USA_PRES=pd.to_numeric(df.USA_PRES)
+    df.USA_WIND=pd.to_numeric(df.USA_WIND)
+    df.USA_RMW=pd.to_numeric(df.USA_RMW)
+
+    df.rename(columns=renamecols,inplace=True)
+    df=df[df['Basin_ID']!='NI']
+    df=df[df['Basin_ID']!='EP']
+    df['Basin_ID']='NA'
+
+    PD_TIME=pd.DatetimeIndex(df.ISO_TIME)
+    df['Month'] = pd.DatetimeIndex(PD_TIME).month
+    df['Day'] = pd.DatetimeIndex(PD_TIME).day
+    df['Hour'] = pd.DatetimeIndex(PD_TIME).hour
+
+    #df['abssn']=np.cumsum(1*(df.Hour==0))
+    #df.set_index('abssn',inplace=True)
+    
+    df2=df.copy()
+    df2['abssn'] = -1
+    unique_ids=df2['USA_ATCF_ID'].unique()
+
+    for i,j in enumerate(unique_ids):
+        idx=df2['USA_ATCF_ID']==j
+        df2['abssn'].loc[idx]=i
+    df=df2
+    
+    df.set_index('abssn',inplace=True)   
+    
+    df = df[['Year', 'Month', 'Day', 'Hour', 
+             'Basin_ID', 'Latitude', 'Longitude', 
+             'Min_pres', 'MaxWindSpd', 'RMW', 'Dist2land', 'NATURE']]
+    
+    return df
+
+
+def storm_stall(dfin):
+    """
+    """
     dfout=dfin.copy()
     stlen=10 # days
     dt=3 # hours
@@ -271,11 +364,11 @@ def storm_stall(dfin):
         #print(f"{l} {nt:6f} {lo:3f} {la:3f} {dp:5.0f} {du:6.2f} {dv:6.2f} {fac:3f} {rmw:5f} {hb:5f}")
 
     dfout.index = newt
+    
     return dfout
 
 
-
-N=24
+N=14
 cmap=discrete_cmap(N, 'jet_r')
-norm = mpl.colors.Normalize(vmin=900, vmax=1020)
+norm = mpl.colors.Normalize(vmin=880, vmax=1024)
 #norm = mpl.colors.Normalize(vmin=0, vmax=2)

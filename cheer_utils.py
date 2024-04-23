@@ -154,7 +154,7 @@ def TrackPlot(df, extent=None, axx=None, fname=None, circ=None, addcolorbar=True
         axx.plot(x, y, linewidth=1, color='k')
         #axx.plot(x.iloc[0], y.iloc[0], marker='*', color='g')
         #axx.plot(x.iloc[-1], y.iloc[-1], marker='*', color='r')
-        cm=axx.scatter(x=x, y=y, c=c, cmap=cmap, norm=norm, s=36, transform=ccrs.PlateCarree())
+        #cm=axx.scatter(x=x, y=y, c=c, cmap=cmap, norm=norm, s=36, transform=ccrs.PlateCarree())
                 
     if circ is not None:  axx.plot(circ['cirx'],circ['ciry'],linewidth=2, color='k')
     
@@ -274,15 +274,20 @@ def LoadSTORMtracks(basin='NA',ensnum=0,climate='current',model='present',versio
 
 
 def LoadIBTrACS():
-
+    """
+    returns a dataframe with IBTRaCS 
+    RMW and MaxWindSpd are converted to MKS
+    
+    """
+    
     fl='https://tdsres.apps.renci.org/thredds/fileServer/datalayers/ibtracs/ibtracs.NA.list.v04r00.csv'
     
-    dropcols=['SID','SUBBASIN','USA_LAT','USA_LON','USA_STATUS','USA_AGENCY','IFLAG','LANDFALL',
-          'TRACK_TYPE','WMO_AGENCY','WMO_WIND','WMO_PRES','USA_SEAHGT','USA_SEARAD_SW',
-          'USA_SEARAD_NW','USA_SEARAD_NE','USA_SEARAD_SE',
-          'USA_R64_SE','USA_R64_SW','USA_R64_NW','USA_POCI','USA_ROCI',
-          'USA_R50_NE','USA_R50_SE','USA_R50_SW','USA_R50_NW','USA_R64_NE',
-          'USA_SSHS','USA_R34_NE','USA_R34_SE','USA_R34_SW','USA_R34_NW','USA_RECORD','USA_EYE','USA_GUST'];
+    dropcols=['SUBBASIN','USA_LAT','USA_LON','USA_AGENCY','IFLAG','LANDFALL',
+              'TRACK_TYPE','WMO_AGENCY','WMO_WIND','WMO_PRES','USA_SEAHGT','USA_SEARAD_SW',
+              'USA_SEARAD_NW','USA_SEARAD_NE','USA_SEARAD_SE',
+              'USA_R64_SE','USA_R64_SW','USA_R64_NW','USA_POCI','USA_ROCI',
+              'USA_R50_NE','USA_R50_SE','USA_R50_SW','USA_R50_NW','USA_R64_NE',
+              'USA_SSHS','USA_R34_NE','USA_R34_SE','USA_R34_SW','USA_R34_NW','USA_RECORD','USA_EYE','USA_GUST'];
 
     renamecols={'SEASON': 'Year',
                 'LAT': 'Latitude',
@@ -329,8 +334,12 @@ def LoadIBTrACS():
     
     df = df[['Year', 'Month', 'Day', 'Hour', 
              'Basin_ID', 'Latitude', 'Longitude', 
-             'Min_pres', 'MaxWindSpd', 'RMW', 'Dist2land', 'NATURE']]
+             'Min_pres', 'MaxWindSpd', 'RMW', 'Dist2land', 'NATURE', 'USA_ATCF_ID', 'SID', 'USA_STATUS']]
     
+    
+    # df['RMW']=df['RMW']*1.852   # nm to km
+    # df['MaxWindSpd']=df['MaxWindSpd']*0.514444 # kts to m/s
+
     return df
 
 

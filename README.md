@@ -1,6 +1,6 @@
 # CHEER-STORM
 repo for codes/processing of STORM datasets for CHEER
-Version 1.1, 05 Jan 2023
+Version 1.5, 23 Apr 2024
 
 GitHub Repo: git@github.com:BrianOBlanton/CHEER-STORM.git
 
@@ -19,7 +19,19 @@ The easiest way to run the notebook is to use Binder.  Binder builds a python en
 ### Run locally
 Alternatively, if a jupyter server already exists, it should be easy to build a custom python environment and use that to launch / run the nb. 
 
-To make a python environment with the requirements.txt file:  
+For example, clone the repo:
+
+<pre>
+mkdir \<YourHome\>/GitHub
+cd \<YourHome\>/GitHub
+git clone git@github.com:BrianOBlanton/CHEER-STORM.git
+</pre>
+
+NOTE: if you get permissions errors from GitHub, you probably need to set up SSH keys.  See here: https://docs.github.com/en/authentication/connecting-to-github-with-ssh/adding-a-new-ssh-key-to-your-github-account
+
+
+
+To make a python environment with the requirements.txt file, from within the repo directory, 
 
 <pre>
 conda create --name cheer --file  requirements.txt

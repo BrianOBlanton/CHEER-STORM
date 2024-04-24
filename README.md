@@ -4,6 +4,8 @@ Version 1.5, 23 Apr 2024
 
 GitHub Repo: git@github.com:BrianOBlanton/CHEER-STORM.git
 
+Brian Blanton, RENCI
+
 ## Running the notebook
 
 ### Binder Notebook

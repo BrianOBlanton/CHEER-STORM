@@ -4,7 +4,7 @@
     CHEER_UTILS
     utilities for CHEER-STORM
     from repo for codes/processing of STORM datasets for CHEER
-    Version 1.5, 23 Apr 2024
+    Version 1.6, 13 May 2024
     GitHub Repo: git@github.com:BrianOBlanton/CHEER-STORM.git
     Brian Blanton, RENCI
 """
@@ -87,7 +87,7 @@ def discrete_cmap(N, base_cmap=None):
     cmap_name = base.name + str(N)
     return base.from_list(cmap_name, color_list, N)
 
-def TrackPlot(df, extent=None, axx=None, fname=None, circ=None, addcolorbar=True):
+def TrackPlot(df, extent=None, axx=None, fname=None, circ=None, addcolorbar=True, norm=False):
     """
     """
     returnFigAx=False
@@ -98,15 +98,24 @@ def TrackPlot(df, extent=None, axx=None, fname=None, circ=None, addcolorbar=True
     IDX=np.unique(df.index).astype(int)
     
     for i,idx in enumerate(IDX): 
-        x=df.loc[df.index==idx].Longitude
-        y=df.loc[df.index==idx].Latitude
-        c=df.loc[df.index==idx].Min_pres
+        x=df.loc[df.index==idx].Longitude.values
+        y=df.loc[df.index==idx].Latitude.values
+        c=df.loc[df.index==idx].DeltaP.values
+       
         #c=df.loc[df.index==idx].HollandB
-        axx.plot(x, y, linewidth=1, color='k')
+        #axx.plot(x, y, linewidth=.1, color='k')
         #axx.plot(x.iloc[0], y.iloc[0], marker='*', color='g')
         #axx.plot(x.iloc[-1], y.iloc[-1], marker='*', color='r')
-        #cm=axx.scatter(x=x, y=y, c=c, cmap=cmap, norm=norm, s=36, transform=ccrs.PlateCarree())
-                
+        
+        # whack NaNs
+        if np.all(np.isnan(c)):  # skip if all values are NaN
+            continue #print(f'{i,idx,x[0],y[0],c[0]}')
+            
+        if norm is False:
+            cm=axx.scatter(x=x, y=y, c=c, cmap=cmap, s=10, transform=ccrs.PlateCarree())
+        else:
+            cm=axx.scatter(x=x, y=y, c=c, cmap=cmap, norm=norm, s=10, transform=ccrs.PlateCarree())
+               
     if circ is not None:  axx.plot(circ['cirx'],circ['ciry'],linewidth=2, color='k')
     
     if addcolorbar:
@@ -151,7 +160,6 @@ def fullTrackPlot(dfnc, extentnc, nc_circ, dftx, extenttx, tx_circ, fname=None):
                 
     return fig, ax
 
-    
 def LoadSTORMtracks(basin='NA',ensnum=0,climate='current',model='present',version='_V4',nyears=None,startingyear=None):
     """
     Returns STORM tracks in a dataframe. 
@@ -236,12 +244,12 @@ def LoadSTORMtracks(basin='NA',ensnum=0,climate='current',model='present',versio
     df=df[df.columns.drop(list(df.filter(regex='TC_number|Time_step|Category|Landfall')))]
 
     if nyears:
-        if  not startingyear:
+        if not startingyear:
             # random starting year
             startingyear=np.random.randint(np.min(df.Year),np.max(df.Year)-nyears)
+            
         print(f'Starting year = {startingyear}')
         df=df.loc[(df['Year'] >= startingyear) & (df['Year'] < startingyear+nyears)]
-        
     
     return df
 
@@ -291,8 +299,8 @@ def LoadIBTrACS(minyear=None, maxyear=None):
 
     PD_TIME=pd.DatetimeIndex(df.ISO_TIME)
     df['Month'] = pd.DatetimeIndex(PD_TIME).month
-    df['Day'] = pd.DatetimeIndex(PD_TIME).day
-    df['Hour'] = pd.DatetimeIndex(PD_TIME).hour
+    df['Day']   = pd.DatetimeIndex(PD_TIME).day
+    df['Hour']  = pd.DatetimeIndex(PD_TIME).hour
 
     #df['abssn']=np.cumsum(1*(df.Hour==0))
     #df.set_index('abssn',inplace=True)
@@ -310,7 +318,8 @@ def LoadIBTrACS(minyear=None, maxyear=None):
     
     df = df[['Year', 'Month', 'Day', 'Hour', 
              'Basin_ID', 'Latitude', 'Longitude', 
-             'Min_pres', 'MaxWindSpd', 'RMW', 'Dist2land', 'NATURE', 'USA_ATCF_ID', 'SID', 'USA_STATUS']]
+             'Min_pres', 'MaxWindSpd', 'RMW', 'Dist2land', 
+             'NATURE', 'USA_ATCF_ID', 'SID', 'USA_STATUS']]
     
     if minyear:
         df=df.loc[(df['Year'] >= minyear)]
@@ -420,4 +429,5 @@ def out_to_nws8(df,basin='AL',tau=0,advr=0,fname=None,stormname='unknown'):
 cmap_N=14
 cmap=discrete_cmap(cmap_N, 'jet_r')
 norm_pres = mpl.colors.Normalize(vmin=880, vmax=1024)
+norm_dpres = mpl.colors.Normalize(vmin=0, vmax=100)
 #norm = mpl.colors.Normalize(vmin=0, vmax=2)

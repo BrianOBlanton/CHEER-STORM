@@ -160,6 +160,73 @@ def fullTrackPlot(dfnc, extentnc, nc_circ, dftx, extenttx, tx_circ, fname=None):
                 
     return fig, ax
 
+def LoadPEPC(setnums=None):
+                       
+    storms=[]
+    
+    if setnums is None:
+        setnums=[1]
+    elif setnums.lower() == 'all': 
+        setnums=np.arange(1,101)
+    else:
+        if not isinstance(setnums, list):
+            print('setnums must be a list')
+            return
+        setnums=np.array(setnums)
+        
+    #if setnums.min() < 1 || setnums.max()>101:
+        
+    for setnum in setnums:
+
+        fl=f'PEPC_Tracks/reanal_100/selected25_simSS_g{setnum:03d}/lon.csv'
+        print(fl)
+
+        lon=pd.read_csv(fl,header=None)
+        lat=pd.read_csv(fl.replace('lon','lat'),header=None)
+        year=pd.read_csv(fl.replace('lon','year'),header=None)
+        month=pd.read_csv(fl.replace('lon','month'),header=None)
+        day=pd.read_csv(fl.replace('lon','day'),header=None)
+        hour=pd.read_csv(fl.replace('lon','hour'),header=None)
+        wind=pd.read_csv(fl.replace('lon','wind'),header=None)
+        mld=pd.read_csv(fl.replace('lon','mld'),header=None)
+        mpi=pd.read_csv(fl.replace('lon','mpi'),header=None)
+        strat=pd.read_csv(fl.replace('lon','strat'),header=None)
+        tspd=pd.read_csv(fl.replace('lon','tspd'),header=None)
+        shr=pd.read_csv(fl.replace('lon','shr'),header=None)
+        rhhi=pd.read_csv(fl.replace('lon','rhhi'),header=None)
+
+        ntimes, nstorms = lon.shape
+
+        for i in range(nstorms):
+            lon2=lon.loc[:,i].values;
+            lat2=lat.loc[:,i].values;
+            year2=year.loc[:,i].values;
+            month2=month.loc[:,i].values;
+            day2=day.loc[:,i].values;
+            hour2=hour.loc[:,i].values;
+            wind2=wind.loc[:,i].values;
+            mld2=mld.loc[:,i].values;
+            mpi2=mpi.loc[:,i].values;
+            strat2=strat.loc[:,i].values;
+            tspd2=tspd.loc[:,i].values;
+            shr2=shr.loc[:,i].values;
+            rhhi2=rhhi.loc[:,i].values;
+
+            abssn=(setnum-1)*1000+i*np.ones(lon2.shape[0])
+
+            storm=pd.DataFrame({'abssn':abssn.astype(int), 'Longitude':lon2, 'Latitude':lat2, 'Year':year2, 'Month':month2, 
+                                'Day':day2, 'Hour':hour2, 'wind':wind2, 'mld':mld2, 'mpi':mpi2, 'tspd': tspd2, 'shr':shr2, 'rhhi':rhhi2})
+            storm.dropna(inplace=True)
+
+            storms.append(storm)
+
+            #if i==18: print(storm); break
+
+    storms2=pd.concat(storms)
+    storms2.set_index('abssn',inplace=True)
+    #storms2.dropna(inplace=True)
+    return storms2
+
 def LoadSTORMtracks(basin='NA',ensnum=0,climate='current',model='present',version='_V4',nyears=None,startingyear=None):
     """
     Returns STORM tracks in a dataframe. 

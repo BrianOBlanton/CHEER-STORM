@@ -10,6 +10,7 @@
 """
 
 import os
+import errno
 import re
 import yaml
 import json
@@ -160,8 +161,12 @@ def fullTrackPlot(dfnc, extentnc, nc_circ, dftx, extenttx, tx_circ, fname=None):
                 
     return fig, ax
 
-def LoadPEPC(setnums=None):
-                       
+def LoadPEPC(pathtopepcfiles,setnums=None):
+
+    if not os.path.isdir(pathtopepcfiles): 
+        raise FileNotFoundError(
+            errno.ENOENT, os.strerror(errno.ENOENT), pathtopepcfiles)
+        
     storms=[]
     
     if setnums is None:
@@ -178,7 +183,7 @@ def LoadPEPC(setnums=None):
         
     for setnum in setnums:
 
-        fl=f'PEPC_Tracks/reanal_100/selected25_simSS_g{setnum:03d}/lon.csv'
+        fl=f'{pathtopepcfiles}/selected25_simSS_g{setnum:03d}/lon.csv'
         print(fl)
 
         lon=pd.read_csv(fl,header=None)

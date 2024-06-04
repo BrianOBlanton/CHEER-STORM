@@ -162,7 +162,12 @@ def fullTrackPlot(dfnc, extentnc, nc_circ, dftx, extenttx, tx_circ, fname=None):
     return fig, ax
 
 def LoadPEPC(pathtopepcfiles,setnums=None):
-
+    '''
+    Loads the Princeton PEPC tracks into df with variable names equivalent to the loadIBTracs and LoadSTORM
+    Longitudes are translated to negative west convention
+    Units for wind etc are currently ambiguous, so no converstions are made
+    '''
+    
     if not os.path.isdir(pathtopepcfiles): 
         raise FileNotFoundError(
             errno.ENOENT, os.strerror(errno.ENOENT), pathtopepcfiles)
@@ -171,21 +176,26 @@ def LoadPEPC(pathtopepcfiles,setnums=None):
     
     if setnums is None:
         setnums=[1]
-    elif setnums.lower() == 'all': 
+    elif isinstance(setnums, list):
+        #print('setnums must be a list')
+        setnums=np.array(setnums)
+    elif isinstance(setnums,str):
+        if setnums.lower() != 'all': 
+            print('if setnums is a string, it must be "all".')
+            return
         setnums=np.arange(1,101)
     else:
-        if not isinstance(setnums, list):
-            print('setnums must be a list')
-            return
-        setnums=np.array(setnums)
+        pass
         
+    setnums=np.array(setnums)
+
     #if setnums.min() < 1 || setnums.max()>101:
         
     for setnum in setnums:
 
         fl=f'{pathtopepcfiles}/selected25_simSS_g{setnum:03d}/lon.csv'
         print(fl)
-
+                
         lon=pd.read_csv(fl,header=None)
         lat=pd.read_csv(fl.replace('lon','lat'),header=None)
         year=pd.read_csv(fl.replace('lon','year'),header=None)
@@ -203,7 +213,7 @@ def LoadPEPC(pathtopepcfiles,setnums=None):
         ntimes, nstorms = lon.shape
 
         for i in range(nstorms):
-            lon2=lon.loc[:,i].values;
+            lon2=lon.loc[:,i].values-360;
             lat2=lat.loc[:,i].values;
             year2=year.loc[:,i].values;
             month2=month.loc[:,i].values;

@@ -179,26 +179,31 @@ def LoadPEPC(pathtopepcfiles,setnums=None):
     elif isinstance(setnums, list):
         #print('setnums must be a list')
         setnums=np.array(setnums)
+    elif isinstance(setnums,int):
+        # load first setnums sets
+        setnums=np.arange(1,setnums+1)
     elif isinstance(setnums,str):
         if setnums.lower() != 'all': 
             print('if setnums is a string, it must be "all".')
             return
         setnums=np.arange(1,101)
     else:
-        pass
+        print('unknown setnums passed to LoadPEPC.')
+        return
         
     setnums=np.array(setnums)
 
     #if setnums.min() < 1 || setnums.max()>101:
-        
-    for setnum in setnums:
+    ny=39
+    
+    for j,setnum in enumerate(setnums):
 
         fl=f'{pathtopepcfiles}/selected25_simSS_g{setnum:03d}/lon.csv'
         print(fl)
                 
         lon=pd.read_csv(fl,header=None)
         lat=pd.read_csv(fl.replace('lon','lat'),header=None)
-        year=pd.read_csv(fl.replace('lon','year'),header=None)
+        year=pd.read_csv(fl.replace('lon','year'),header=None)+ j*ny  # add year offset 
         month=pd.read_csv(fl.replace('lon','month'),header=None)
         day=pd.read_csv(fl.replace('lon','day'),header=None)
         hour=pd.read_csv(fl.replace('lon','hour'),header=None)
@@ -213,19 +218,20 @@ def LoadPEPC(pathtopepcfiles,setnums=None):
         ntimes, nstorms = lon.shape
 
         for i in range(nstorms):
-            lon2=lon.loc[:,i].values-360;
-            lat2=lat.loc[:,i].values;
-            year2=year.loc[:,i].values;
-            month2=month.loc[:,i].values;
-            day2=day.loc[:,i].values;
-            hour2=hour.loc[:,i].values;
-            wind2=wind.loc[:,i].values;
-            mld2=mld.loc[:,i].values;
-            mpi2=mpi.loc[:,i].values;
-            strat2=strat.loc[:,i].values;
-            tspd2=tspd.loc[:,i].values;
-            shr2=shr.loc[:,i].values;
-            rhhi2=rhhi.loc[:,i].values;
+            lon2=lon.loc[:,i].values
+            lon2 = np.where(lon2> 180, lon2-360, lon2)
+            lat2=lat.loc[:,i].values
+            year2=year.loc[:,i].values 
+            month2=month.loc[:,i].values
+            day2=day.loc[:,i].values
+            hour2=hour.loc[:,i].values
+            wind2=wind.loc[:,i].values
+            mld2=mld.loc[:,i].values
+            mpi2=mpi.loc[:,i].values
+            strat2=strat.loc[:,i].values
+            tspd2=tspd.loc[:,i].values
+            shr2=shr.loc[:,i].values
+            rhhi2=rhhi.loc[:,i].values
 
             abssn=(setnum-1)*1000+i*np.ones(lon2.shape[0])
 
@@ -235,11 +241,8 @@ def LoadPEPC(pathtopepcfiles,setnums=None):
 
             storms.append(storm)
 
-            #if i==18: print(storm); break
-
     storms2=pd.concat(storms)
     storms2.set_index('abssn',inplace=True)
-    #storms2.dropna(inplace=True)
     return storms2
 
 def LoadSTORMtracks(basin='NA',ensnum=0,climate='current',model='present',version='_V4',nyears=None,startingyear=None):
@@ -303,7 +306,7 @@ def LoadSTORMtracks(basin='NA',ensnum=0,climate='current',model='present',versio
         url=f'{baseurl}/future/{model}/STORM_DATA_{mod_dict[model]}_{basin}_1000_YEARS_{ensnum}_IBTRACSDELTA.txt'
 
     print(f'Reading STORM tracks from {url}')
-    
+
     df=pd.read_csv(url, names=cols)
 
     # generate an "absolute storm number (abssn)" to uniquely identify each storm 
@@ -412,6 +415,62 @@ def LoadIBTrACS(minyear=None, maxyear=None):
     df['MaxWindSpd']=df['MaxWindSpd']*0.514444 # kts to m/s
 
     return df
+
+def get_genesis_locations(df):
+    '''
+    returns a df of genesis positions, i.e., the first position in each track
+    '''
+    
+    glo=[]
+    gla=[]
+    gdp=[]
+
+    IDX=np.unique(df.index).astype(int)
+    
+    for i,idx in enumerate(IDX): 
+        glo.append(df.loc[df.index==idx].Longitude.values[0])
+        gla.append(df.loc[df.index==idx].Latitude.values[0])
+    data = {'Longitude': glo, 'Latitude': gla}
+    
+    if 'DeltaP' in df.keys():
+        for i,idx in enumerate(IDX): 
+            gdp.append(df.loc[df.index==idx].DeltaP.values[0])
+        data['DeltaP']=gdp
+        
+    return pd.DataFrame.from_dict(data)
+
+def get_counts_per_year(grid_dict,df):
+    """
+    returns matrix of counts of df in grid_dict
+    """
+    
+    nx=grid_dict['lon_bins'].shape[0]
+    ny=grid_dict['lat_bins'].shape[0]
+    counts=np.zeros((ny-1,nx-1))
+    
+    for i in range(ny-1):
+
+        latmin=grid_dict['lat_bins'][i]
+        latmax=grid_dict['lat_bins'][i+1]
+
+        for j in range(nx-1):
+
+            lonmin=grid_dict['lon_bins'][j]
+            lonmax=grid_dict['lon_bins'][j+1]
+            
+            df_temp=df.loc[(df['Latitude']>=latmin)  &  (df['Latitude']<latmax) 
+                         & (df['Longitude']>=lonmin) &  (df['Longitude']<lonmax)]
+            
+            IDX=np.unique(df_temp.index).astype(int)
+            counts[i][j]=IDX.shape[0]
+            #if counts[i][j]>0:print(lonmin,lonmax,latmin,latmax,int(counts[i][j]))
+
+    number_of_years=(df["Year"].max()-df["Year"].min())+1
+    print(f'number_of_years={number_of_years}')
+    counts=counts/number_of_years
+    counts=np.where(counts < .1, np.nan, counts)
+
+    return counts
 
 def storm_stall_nws67(dfin):
     """

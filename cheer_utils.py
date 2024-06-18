@@ -19,6 +19,9 @@ import pandas as pd
 import xarray as xr
 import matplotlib.pyplot as plt
 import matplotlib as mpl
+#import matplotlib.cm
+import matplotlib.ticker as mticker
+
 import cartopy.crs as ccrs
 
 # these are not really needed if using Cartopy plotting
@@ -48,31 +51,51 @@ def HbFromRmwLat(rmw,lat):
     assert np.all(lat>0), 'Latitudes must be all >0 for this model.'
     return 1.881 - 0.0057*rmw - 0.01295*lat
 
-def ss_scale(spd,units='m/s'):
+def ss_scale(spd,units='m/s',retval='value'):
     """
     assumes spd (max wind speed) default is in m/s
     ------------------------------------------------------------------------------
-       Category     Value | wind speed (mph) |  wind speed (m/s) | pres (mb)
+       Category | Value | wind speed (mph) |  wind speed (m/s) | pres (mb)
     ------------------------------------------------------------------------------
-       Trop Dep      -1      0 <= s < 39          0 <= s < 17.4       
-       Trop Storm     0     39 <= s < 74       17.4 <= s < 33.1 
-          One         1     74 <= s < 96       33.1 <= s < 42.9    980 < p
-          Two         2     96 <= s < 110      42.9 <= s < 49.2    965 <= p < 980  
-         Three        3    110 <= s < 130      49.2 <= s < 58.1    944 <= p < 965
-         Four         4    130 <= s < 155      58.1 <= s < 69.3    920 <= p < 944
-         Five         5    155 <= s            69.3 <= s                  p < 920
+          TD       -1      0 >= s < 39          0 >= s < 17.4       
+          TS        0     39 >= s < 74       17.4 >= s < 33.1 
+          C1        1     74 >= s < 96       33.1 >= s < 42.9    980 < p
+          C2        2     96 >= s < 110      42.9 >= s < 49.2    965 <= p < 980  
+          C3        3    110 >= s < 130      49.2 >= s < 58.1    944 <= p < 965
+          C4        4    130 >= s < 155      58.1 >= s < 69.3    920 <= p < 944
+          C5        5    155 >= s            69.3 >= s                  p < 920
     """
+
+    
     if units not in {'mph','m/s'}:
         print('unknown units: setting ss to "XX"')
         return 'XX'
-    if units == 'mph':
-        if spd < 39: return 'TD'
-        if spd < 74: return 'TS'
-    elif units == 'm/s':
-        if spd < 17.4: return 'TD'
-        if spd < 33.1: return 'TS'
-    return 'HU'
+    
+    #     0      1     2       3     4      5     6
+    #     TD     TS    C1     C2     C3     C4    C5
+    bins=np.array([0,     39,   74,    96,   110,   130,  155])
+    # bins in m/s
+    bins_ms=bins/2.23694
 
+    d=np.zeros(spd.shape)  # initialize to zeros (==>>TS)
+    
+    if units == 'mph': spd=spd/2.23694
+    
+    d=np.where((spd>=bins_ms[0]) & (spd<bins_ms[1]),-1,d)
+    d=np.where((spd>=bins_ms[2]) & (spd<bins_ms[3]), 1,d)
+    d=np.where((spd>=bins_ms[3]) & (spd<bins_ms[4]), 2,d)
+    d=np.where((spd>=bins_ms[4]) & (spd<bins_ms[5]), 3,d)
+    d=np.where((spd>=bins_ms[5]) & (spd<bins_ms[6]), 4,d)
+    d=np.where((spd>=bins_ms[6])                   , 5,d)
+    
+#     if units == 'mph':
+#         if spd < 39: return 'TD'
+#         if spd < 74: return 'TS'
+#     elif units == 'm/s':
+#         if spd < 17.4: return 'TD'
+#         if spd < 33.1: return 'TS'
+    
+    return d.astype(int)
 
 def discrete_cmap(N, base_cmap=None):
     """
@@ -83,12 +106,13 @@ def discrete_cmap(N, base_cmap=None):
     #    return plt.cm.get_cmap(base_cmap, N)
     # The following works for string, None, or a colormap instance:
 
-    base = plt.cm.get_cmap(base_cmap)
+    #base = plt.cm.get_cmap(base_cmap)
+    base = mpl.colormaps[base_cmap]
     color_list = base(np.linspace(0, 1, N))
     cmap_name = base.name + str(N)
     return base.from_list(cmap_name, color_list, N)
 
-def TrackPlot(df, extent=None, axx=None, fname=None, circ=None, addcolorbar=True, norm=False):
+def TrackPlot(df, extent=None, axx=None, fname=None, circ=None, addcolorbar=True, norm=False, color_pressure=True):
     """
     """
     returnFigAx=False
@@ -104,22 +128,23 @@ def TrackPlot(df, extent=None, axx=None, fname=None, circ=None, addcolorbar=True
         c=df.loc[df.index==idx].DeltaP.values
        
         #c=df.loc[df.index==idx].HollandB
-        #axx.plot(x, y, linewidth=.1, color='k')
+        axx.plot(x, y, linewidth=.1, color='k', transform=ccrs.PlateCarree())
         #axx.plot(x.iloc[0], y.iloc[0], marker='*', color='g')
         #axx.plot(x.iloc[-1], y.iloc[-1], marker='*', color='r')
         
-        # whack NaNs
-        if np.all(np.isnan(c)):  # skip if all values are NaN
-            continue #print(f'{i,idx,x[0],y[0],c[0]}')
-            
-        if norm is False:
-            cm=axx.scatter(x=x, y=y, c=c, cmap=cmap, s=10, transform=ccrs.PlateCarree())
-        else:
-            cm=axx.scatter(x=x, y=y, c=c, cmap=cmap, norm=norm, s=10, transform=ccrs.PlateCarree())
-               
-    if circ is not None:  axx.plot(circ['cirx'],circ['ciry'],linewidth=2, color='k')
+        if color_pressure:
+            # whack NaNs
+            if np.all(np.isnan(c)):  # skip if all values are NaN
+                continue #print(f'{i,idx,x[0],y[0],c[0]}')
+
+            if norm is False:
+                cm=axx.scatter(x=x, y=y, c=c, cmap=cmap, s=10, transform=ccrs.PlateCarree())
+            else:
+                cm=axx.scatter(x=x, y=y, c=c, cmap=cmap, norm=norm, s=10, transform=ccrs.PlateCarree())
+
+    if circ is not None:  axx.plot(circ['cirx'],circ['ciry'],linewidth=2, color='k', transform=ccrs.PlateCarree())
     
-    if addcolorbar:
+    if addcolorbar & color_pressure:
         cb1 = plt.colorbar(cm, ax=axx, orientation='vertical', pad=0.02, aspect=15) # , shrink=0.15)
         cb1.ax.set_ylabel('[mb]', size=12)
         cb1.ax.tick_params(labelsize='large')
@@ -245,7 +270,7 @@ def LoadPEPC(pathtopepcfiles,setnums=None):
     storms2.set_index('abssn',inplace=True)
     return storms2
 
-def LoadSTORMtracks(basin='NA',ensnum=0,climate='current',model='present',version='_V4',nyears=None,startingyear=None):
+def LoadSTORMtracks(basin='NA',ensnum=0,climate='current',model='present',version='_V4',nyears=None,startingyear=None,baseurl=None):
     """
     Returns STORM tracks in a dataframe. 
     
@@ -259,6 +284,7 @@ def LoadSTORMtracks(basin='NA',ensnum=0,climate='current',model='present',versio
         ensnum (int): 1000-yr chunk to read, default 0 (first 1000 yrs), 0-10
         climate (str): climate spec, def = 'current', {'current','future'}
         model (str): model spec, def = 'present', {'present', 'CMCC', 'CNRM', 'ECEARTH', 'HADGEM'}
+        
         version (str): STORM version tag, def = '_V4' {don't change}
         nyears (int): = number of years to return, from ensnum chunk, def = None (all years)
         startingyear (int): starting year to return, of nyears, def = None (random start year if nyears not None)
@@ -269,7 +295,8 @@ def LoadSTORMtracks(basin='NA',ensnum=0,climate='current',model='present',versio
     
     """
         
-    baseurl='https://tdsres.apps.renci.org/thredds/fileServer/datalayers/STORM_Bloemendaal_data'
+    if baseurl is None:
+        baseurl='https://tdsres.apps.renci.org/thredds/fileServer/datalayers/STORM_Bloemendaal_data'
 
     # column def of STORM files
     cols=[
@@ -338,7 +365,7 @@ def LoadSTORMtracks(basin='NA',ensnum=0,climate='current',model='present',versio
     
     return df
 
-def LoadIBTrACS(minyear=None, maxyear=None):
+def LoadIBTrACS(minyear=None, maxyear=None, month=None):
     """
     Returns a dataframe with IBTrACS 
     
@@ -346,6 +373,8 @@ def LoadIBTrACS(minyear=None, maxyear=None):
     maxyear=None
     
     RMW and MaxWindSpd are converted to MKS
+    
+    https://www.ncei.noaa.gov/sites/default/files/2021-07/IBTrACS_v04_column_documentation.pdf
     
     """
     
@@ -356,7 +385,7 @@ def LoadIBTrACS(minyear=None, maxyear=None):
               'USA_SEARAD_NW','USA_SEARAD_NE','USA_SEARAD_SE',
               'USA_R64_SE','USA_R64_SW','USA_R64_NW','USA_POCI','USA_ROCI',
               'USA_R50_NE','USA_R50_SE','USA_R50_SW','USA_R50_NW','USA_R64_NE',
-              'USA_SSHS','USA_R34_NE','USA_R34_SE','USA_R34_SW','USA_R34_NW','USA_RECORD','USA_EYE','USA_GUST'];
+              'USA_R34_NE','USA_R34_SE','USA_R34_SW','USA_R34_NW','USA_RECORD','USA_EYE','USA_GUST'];
 
     renamecols={'SEASON': 'Year',
                 'LAT': 'Latitude',
@@ -366,7 +395,8 @@ def LoadIBTrACS(minyear=None, maxyear=None):
                 'USA_RMW': 'RMW',
                 #'LANDFALL': 'Landfall',
                 'DIST2LAND': 'Dist2land',
-                'BASIN': 'Basin_ID'}
+                'BASIN': 'Basin_ID',
+                'USA_SSHS': 'SafSimSc'}
 
     df=pd.read_csv(fl,skiprows = [1],low_memory=False).drop(dropcols,axis=1).replace(' ', np.nan)
     
@@ -398,25 +428,136 @@ def LoadIBTrACS(minyear=None, maxyear=None):
         idx=df2['USA_ATCF_ID']==j
         df2['abssn'].loc[idx]=i
     df=df2
-    
     df.set_index('abssn',inplace=True)   
     
+    # reoorder columns
     df = df[['Year', 'Month', 'Day', 'Hour', 
              'Basin_ID', 'Latitude', 'Longitude', 
              'Min_pres', 'MaxWindSpd', 'RMW', 'Dist2land', 
-             'NATURE', 'USA_ATCF_ID', 'SID', 'USA_STATUS']]
-    
+             'NATURE', 'USA_ATCF_ID', 'SID', 'USA_STATUS',
+             'SafSimSc']]
+        
     if minyear:
         df=df.loc[(df['Year'] >= minyear)]
     if maxyear:
         df=df.loc[(df['Year'] <= maxyear)]
+    if month:
+        df=df.loc[(df['Month'] == month[0])]
     
     df['RMW']=df['RMW']*1.852   # nm to km
     df['MaxWindSpd']=df['MaxWindSpd']*0.514444 # kts to m/s
 
     return df
 
-def get_genesis_locations(df):
+def get_track_numbers(df):
+    
+    return np.unique(df.index).astype(int)
+
+def plot_tracks(df,ax,kwargs=None):
+    
+    if kwargs is None: 
+        kwargs={"color":'k',
+                "alpha":0.2,
+                "linewidth":.25,
+                "clip_on":True}
+    IDX=np.unique(df.index).astype(int)   
+    for i,idx in enumerate(IDX): 
+        x=df.loc[df.index==idx].Longitude.values
+        y=df.loc[df.index==idx].Latitude.values
+        ax.plot(x, y, transform=ccrs.PlateCarree(), **kwargs)
+        
+def spatial_density_plot_contours(lon, lat, data, ax, fig, 
+                                  cmap=None, vmin=None, vmax=None, 
+                                  cbstr='', tstr='', nc=10, 
+                                  levels=None,
+                                  addcolorbar=True, filled=True, cbshfc=1.0):
+    '''
+    dims of lon and lat must equal those of data
+    '''
+    
+    kwargs={"transform":ccrs.PlateCarree(),'extend':'max'}
+
+    if vmin is None: vmin=np.nanmin(data)
+    if vmax is None: vmax=np.nanmax(data)
+    
+    if levels is None:
+        levels = np.linspace(vmin,vmax,nc)
+
+    print(f'levels={levels}')
+    
+    data=np.where(data==0,np.nan,data)
+    data
+ 
+    if filled:
+        axm=ax.contourf(lon,lat,data, cmap=cmap, levels=levels, vmin=vmin, vmax=vmax, **kwargs) # , norm=norm)
+    else:
+        axm =ax.contour(lon,lat,data, cmap=cmap, levels=levels, vmin=vmin, vmax=vmax, **kwargs) # , norm=norm)
+
+    ax.set_extent([lon.min(), lon.max(), lat.min(), lat.max()], crs=ccrs.PlateCarree())
+    ax.grid(True)
+    ax.stock_img()
+    #ax[i].background_img(name='BM', resolution='low')
+    ax.coastlines()
+    ax.set_title(tstr)
+    
+    cb=None
+    if addcolorbar: 
+        cb=fig.colorbar(axm, ax=ax, shrink=cbshfc) #,ticks=ticks-0.5)
+        cb.ax.set_ylabel(cbstr)
+ 
+    ax.stock_img()
+    ax.coastlines()
+    ax.grid(True)
+
+    gl=ax.gridlines(draw_labels=True, linewidth=1, color='k', alpha=0.25, linestyle='--')
+    gl.top_labels = False
+    gl.right_labels = False
+    gl.xlocator = mticker.FixedLocator(np.arange(-120, 0,5))
+
+    return axm, cb
+
+def spatial_density_plot(lon, lat, dx, dy, data, ax, fig, 
+                         cmap=None, vmin=None, vmax=None, cbstr='', tstr='', 
+                         shading='nearest', addcolorbar=True, cbshfc=1.0):
+    
+    kwargs={"transform":ccrs.PlateCarree(), 
+            "edgecolor":'k', 
+            "linewidth":.01}
+    
+    if vmin is None: vmin=np.nanmin(data)
+    if vmax is None: vmax=np.nanmax(data)
+    if cmap is None: cmap='jet'
+    
+    data=np.where(data==0,np.nan,data)
+    
+    if shading == "nearest":
+        axm=ax.pcolormesh(lon-dx/2, lat-dy/2, data, 
+                          cmap=cmap, shading="nearest",
+                          vmin=vmin, vmax=vmax, **kwargs)
+    else:
+        axm=ax.pcolormesh(lon, lat, data, 
+                          cmap=cmap, shading="flat",
+                          vmin=vmin, vmax=vmax, **kwargs)
+  
+    cb=None
+    if addcolorbar: 
+        cb=fig.colorbar(axm, ax=ax, shrink=cbshfc) #,ticks=ticks-0.5)
+        cb.ax.set_ylabel(cbstr)
+        
+    ax.set_extent([lon.min(), lon.max(), lat.min(), lat.max()], crs=ccrs.PlateCarree())
+    ax.grid(True)
+    ax.stock_img()
+    ax.coastlines()
+    ax.set_title(tstr)
+    #ax[i].background_img(name='BM', resolution='low')
+    
+    gl=ax.gridlines(draw_labels=True, linewidth=1, color='k', alpha=0.25, linestyle='--')
+    gl.top_labels = False
+    gl.right_labels = False
+    
+    return axm, cb
+
+def get_genesis_locations_old(df):
     '''
     returns a df of genesis positions, i.e., the first position in each track
     '''
@@ -428,18 +569,34 @@ def get_genesis_locations(df):
     IDX=np.unique(df.index).astype(int)
     
     for i,idx in enumerate(IDX): 
-        glo.append(df.loc[df.index==idx].Longitude.values[0])
-        gla.append(df.loc[df.index==idx].Latitude.values[0])
+        glo.append(df[df.index==idx].iloc[0]['Longitude'])
+        gla.append(df[df.index==idx].iloc[0]['Latitude'])
+        # glo.append(df.loc[df.index==idx].Longitude.values[0])
+        # gla.append(df.loc[df.index==idx].Latitude.values[0])
     data = {'Longitude': glo, 'Latitude': gla}
     
     if 'DeltaP' in df.keys():
         for i,idx in enumerate(IDX): 
-            gdp.append(df.loc[df.index==idx].DeltaP.values[0])
+            gdp.append(df[df.index==idx].iloc[0]['DeltaP'])
+            # gdp.append(df.loc[df.index==idx].DeltaP.values[0])
         data['DeltaP']=gdp
         
     return pd.DataFrame.from_dict(data)
 
-def get_counts_per_year(grid_dict,df):
+def get_genesis_locations(df):
+    '''
+    returns a df of genesis positions, i.e., the first position in each track
+    '''
+ 
+    IDX=df.index.astype(int)
+    # print(np.unique(IDX[0:100]))
+    hh=np.ones(IDX.shape)
+    hh[1:]=np.diff(IDX)
+    hh=np.where(hh>0,True,False)
+    idx=np.where(hh)[0]
+    return df.iloc[idx]
+
+def get_counts_per_year(grid_dict,df,normalize=True):
     """
     returns matrix of counts of df in grid_dict
     """
@@ -463,12 +620,53 @@ def get_counts_per_year(grid_dict,df):
             
             IDX=np.unique(df_temp.index).astype(int)
             counts[i][j]=IDX.shape[0]
+
+    #counts=np.where(counts < 1, np.nan, counts)
+
+    if normalize: 
+        number_of_years=(df["Year"].max()-df["Year"].min())+1
+        print(f'number_of_years={number_of_years}')
+        counts=counts/number_of_years
+
+    return counts
+
+def get_counts_per_year_circles(grid_dict,df,normalize=True):
+    """
+    returns matrix of counts of df in grid_dict, as circles about grid points
+    """
+    
+    nx=grid_dict['lon_bins'].shape[0]
+    ny=grid_dict['lat_bins'].shape[0]
+    rad=grid_dict['rad']
+    
+    counts=np.zeros((ny-1,nx-1))
+    
+    for i in range(ny-1):
+
+        latc=grid_dict['lat_bins'][i]
+        latc2=grid_dict['lat_bins'][i+1]
+
+        for j in range(nx-1):
+            
+            lonc=grid_dict['lon_bins'][j]
+            lonc2=grid_dict['lon_bins'][j+1]
+
+            df_temp=df.loc[(df['Latitude']  >= latc-grid_dict['dy'])  &  (df['Latitude']  < latc2+grid_dict['dy']) 
+                         & (df['Longitude'] >= lonc-+grid_dict['dx']) &  (df['Longitude'] < lonc2+grid_dict['dx'])]
+
+            d=np.sqrt(np.square(df_temp['Longitude']-lonc) + np.square(df_temp['Latitude']-latc)) 
+            df_temp2=df_temp[d < rad]
+            IDX=np.unique(df_temp2.index).astype(int)
+        
+            counts[i][j]=IDX.shape[0]
             #if counts[i][j]>0:print(lonmin,lonmax,latmin,latmax,int(counts[i][j]))
 
-    number_of_years=(df["Year"].max()-df["Year"].min())+1
-    print(f'number_of_years={number_of_years}')
-    counts=counts/number_of_years
-    counts=np.where(counts < .1, np.nan, counts)
+    #counts=np.where(counts < 1, np.nan, counts)
+    
+    if normalize: 
+        number_of_years=(df["Year"].max()-df["Year"].min())+1
+        print(f'number_of_years={number_of_years}')
+        counts=counts/number_of_years
 
     return counts
 
@@ -565,7 +763,6 @@ def out_to_nws8(df,basin='AL',tau=0,advr=0,fname=None,stormname='unknown'):
         f.write(outs) 
         
     f.close()
-
 
 cmap_N=14
 cmap=discrete_cmap(cmap_N, 'jet_r')

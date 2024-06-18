@@ -1,6 +1,6 @@
 # CHEER-STORM
 repo for codes/processing of STORM datasets for CHEER
-Version 1.5, 23 Apr 2024
+Version 1.6, 17 Jun 2024
 
 GitHub Repo: git@github.com:BrianOBlanton/CHEER-STORM.git
 
